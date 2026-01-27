@@ -38,7 +38,7 @@ $env:TARGET_REPO_PATH = "C:\path\to\your\target-repo"
 
 # Ensure target repo has PAT authentication
 cd C:\path\to\your\target-repo
-git remote set-url origin https://<USERNAME>:<PAT_TOKEN>@github.com/<USER>/<REPO>.git
+git remote set-url origin https://<PAT_TOKEN>@github.com/<USER>/<REPO>.git
 ```
 
 ### 2. Run the Agent
