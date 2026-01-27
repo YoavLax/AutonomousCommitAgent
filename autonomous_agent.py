@@ -36,6 +36,25 @@ async def make_autonomous_commit(repo_path: str) -> bool:
         
         print("✓ Repository is clean")
         
+        # Analyze repository structure
+        print("\n🔍 Analyzing repository...")
+        repo_files = []
+        for root, dirs, files in os.walk(repo_path):
+            # Skip .git directory
+            dirs[:] = [d for d in dirs if d != '.git']
+            for file in files:
+                rel_path = os.path.relpath(os.path.join(root, file), repo_path)
+                repo_files.append(rel_path)
+        
+        repo_summary = f"Repository contains {len(repo_files)} files"
+        if repo_files:
+            file_types = {}
+            for f in repo_files[:20]:  # Show first 20 files
+                ext = os.path.splitext(f)[1] or 'no-ext'
+                file_types[ext] = file_types.get(ext, 0) + 1
+            repo_summary += f"\nFile types: {dict(file_types)}\nSample files: {', '.join(repo_files[:10])}"
+        print(f"✓ Found {len(repo_files)} files")
+        
         # Initialize Copilot client
         print("\n🤖 Initializing Copilot...")
         copilot = CopilotClient(options={"cli_path": "copilot.cmd"})
@@ -68,26 +87,35 @@ async def make_autonomous_commit(repo_path: str) -> bool:
         
         # Ask for improvement
         print("\n💡 Requesting improvement suggestion...")
-        prompt = f"""Analyze this repository at {repo_path} and suggest ONE functional improvement to implement.
+        prompt = f"""You are an autonomous software engineer. Analyze the repository at {repo_path} and implement ONE meaningful feature or enhancement.
 
-PRIORITY: Focus on REAL CODE, not documentation!
-If you make UI changes, ensure they are minimal and functional and add screenshots.
-Choose improvements like:
-- Add a new utility function or helper module (Python, JavaScript, etc.)
-- Add tests for existing code
-- Refactor an existing function or class for better performance or readability
-- Add a new feature module or class
-- Add error handling utilities
-- Create logging or monitoring helpers
-- Add type hints to existing functions or classes
-- Optimize existing algorithms or data structures
+REPOSITORY CONTEXT:
+{repo_summary}
 
-Respond with:
-FILE: <filename with proper extension>
+CRITICAL RULES:
+1. ANALYZE EXISTING CODE FIRST - Look at what's already there, understand the project's purpose
+2. ADD REAL FUNCTIONALITY - Not documentation, not README updates
+3. BE AMBITIOUS - Add features that users would actually want
+4. WRITE PRODUCTION-QUALITY CODE - Include error handling, type hints, comments
+
+SUGGESTED IMPROVEMENTS (choose the most impactful):
+- Implement a NEW FEATURE that extends the project's capabilities
+- Add comprehensive test suite for existing functionality
+- Create API endpoints or CLI commands that users need
+- Build data processing pipelines or automation scripts
+- Add caching, optimization, or performance improvements
+- Implement authentication, validation, or security features
+- Create database models, migrations, or data access layers
+- Add integrations with external services or APIs
+- Build monitoring, logging, or debugging utilities
+- Refactor complex code into maintainable modules
+
+DELIVERABLE FORMAT:
+FILE: <path/filename.ext>
 CONTENT:
-<complete new file content with actual working code>
+<Complete, working, production-ready code>
 
-Make it practical and functional."""
+Think like a senior engineer: What would make this project significantly better?"""
         
         await session.send({"prompt": prompt})
         
@@ -115,21 +143,42 @@ Make it practical and functional."""
         # Parse and apply changes
         print("\n📝 Applying changes...")
         
-        # Simple parsing - look for FILE: and CONTENT:
+        # Enhanced parsing - look for FILE: and CONTENT: (case insensitive, flexible)
         lines = response.split('\n')
         filename = None
         content_lines = []
         in_content = False
         
-        for line in lines:
-            if line.startswith("FILE:"):
-                filename = line.replace("FILE:", "").strip()
-            elif line.startswith("CONTENT:"):
+        for i, line in enumerate(lines):
+            line_lower = line.lower().strip()
+            
+            # Look for FILE: marker (case insensitive)
+            if line_lower.startswith("file:"):
+                filename = line.split(":", 1)[1].strip()
+                # Remove common markdown formatting
+                filename = filename.strip('`').strip()
+            
+            # Look for CONTENT: marker (case insensitive)
+            elif line_lower.startswith("content:"):
                 in_content = True
+                # Check if content is on the same line
+                if len(line.split(":", 1)) > 1:
+                    content_on_line = line.split(":", 1)[1].strip()
+                    if content_on_line:
+                        content_lines.append(content_on_line)
+            
+            # Collect content after CONTENT: marker
             elif in_content:
+                # Skip markdown code block markers
+                if line.strip() in ['```python', '```javascript', '```js', '```', '```py']:
+                    continue
                 content_lines.append(line)
         
-        if not filename:
+        # Clean up trailing empty lines
+        while content_lines and not content_lines[-1].strip():
+            content_lines.pop()
+        
+        if not filename or not content_lines:
             # Default to a utility file if parsing failed
             filename = f"utils_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
             content_lines = [
