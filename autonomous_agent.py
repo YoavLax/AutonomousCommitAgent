@@ -10,7 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 # Configuration
 TARGET_REPO_PATH = "C:\\Users\\ylax\\source\\repos\\testgreengithub\\test"
-COMMIT_TIMES = ["13:55", "13:58"]
+COMMIT_TIMES = ["06:00", "12:00", "18:00"]  # Daily commit times (24-hour format)
 AUTONOMOUS_AGENT_ENABLED = os.getenv("AUTONOMOUS_AGENT_ENABLED", "true").lower() == "true"
 
 
