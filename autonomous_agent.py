@@ -10,7 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 # Configuration
 TARGET_REPO_PATH = "C:\\Users\\ylax\\source\\repos\\testgreengithub\\test"
-COMMIT_TIMES = ["06:00", "12:00", "18:00"]  # Daily commit times (24-hour format)
+COMMIT_TIMES = ["03:00","06:00","09:00", "12:00","15:00", "18:00", "21:00", "00:00"]  # Daily commit times (24-hour format)
 AUTONOMOUS_AGENT_ENABLED = os.getenv("AUTONOMOUS_AGENT_ENABLED", "true").lower() == "true"
 
 
@@ -97,6 +97,7 @@ CRITICAL RULES:
 2. ADD REAL FUNCTIONALITY - Not documentation, not README updates
 3. BE AMBITIOUS - Add features that users would actually want
 4. WRITE PRODUCTION-QUALITY CODE - Include error handling, type hints, comments
+5. DON'T CREATE UTIL FILES - Integrate into existing files.
 
 SUGGESTED IMPROVEMENTS (choose the most impactful):
 - Implement a NEW FEATURE that extends the project's capabilities
@@ -179,17 +180,9 @@ Think like a senior engineer: What would make this project significantly better?
             content_lines.pop()
         
         if not filename or not content_lines:
-            # Default to a utility file if parsing failed
-            filename = f"utils_{datetime.now().strftime('%Y%m%d_%H%M%S')}.py"
-            content_lines = [
-                "# Auto-generated utility module",
-                f"# Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                "",
-                "def placeholder_function():",
-                '    """Placeholder function created by autonomous agent."""',
-                "    pass",
-                ""
-            ]
+            print(f"❌ Failed to parse valid FILE and CONTENT from response")
+            print(f"Response was: {response[:500]}")
+            return False
         
         # Write file
         file_path = Path(repo_path) / filename
