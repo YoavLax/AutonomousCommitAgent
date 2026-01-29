@@ -39,20 +39,38 @@ async def make_autonomous_commit(repo_path: str) -> bool:
         # Analyze repository structure
         print("\n🔍 Analyzing repository...")
         repo_files = []
+        code_samples = []
+        
         for root, dirs, files in os.walk(repo_path):
             # Skip .git directory
             dirs[:] = [d for d in dirs if d != '.git']
             for file in files:
                 rel_path = os.path.relpath(os.path.join(root, file), repo_path)
                 repo_files.append(rel_path)
+                
+                # Read first few Python/JS files to understand the project
+                if len(code_samples) < 3 and file.endswith(('.py', '.js', '.html', '.ts')):
+                    try:
+                        full_path = os.path.join(root, file)
+                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read(1000)  # First 1000 chars
+                            code_samples.append(f"\n--- {rel_path} ---\n{content[:500]}")
+                    except:
+                        pass
         
-        repo_summary = f"Repository contains {len(repo_files)} files"
+        repo_summary = f"Repository contains {len(repo_files)} files\n"
+        
         if repo_files:
             file_types = {}
-            for f in repo_files[:20]:  # Show first 20 files
+            for f in repo_files:
                 ext = os.path.splitext(f)[1] or 'no-ext'
                 file_types[ext] = file_types.get(ext, 0) + 1
-            repo_summary += f"\nFile types: {dict(file_types)}\nSample files: {', '.join(repo_files[:10])}"
+            repo_summary += f"File types: {dict(file_types)}\n"
+            repo_summary += f"Files: {', '.join(repo_files[:15])}\n"
+        
+        if code_samples:
+            repo_summary += "\nCode samples from existing files:" + "".join(code_samples)
+        
         print(f"✓ Found {len(repo_files)} files")
         
         # Initialize Copilot client
@@ -87,36 +105,46 @@ async def make_autonomous_commit(repo_path: str) -> bool:
         
         # Ask for improvement
         print("\n💡 Requesting improvement suggestion...")
-        prompt = f"""You are an autonomous software engineer. Analyze the repository at {repo_path} and implement ONE meaningful feature or enhancement.
+        prompt = f"""You are an autonomous software engineer. Your task is to write code that will be committed automatically.
 
 REPOSITORY CONTEXT:
 {repo_summary}
 
-CRITICAL RULES:
-1. ANALYZE EXISTING CODE FIRST - Look at what's already there, understand the project's purpose
-2. ADD REAL FUNCTIONALITY - Not documentation, not README updates
-3. BE AMBITIOUS - Add features that users would actually want
-4. WRITE PRODUCTION-QUALITY CODE - Include error handling, type hints, comments
-5. DON'T CREATE UTIL FILES - Integrate into existing files.
+YOUR TASK:
+1. ANALYZE the code samples above to understand what this project actually does
+2. Choose ONE meaningful feature that EXTENDS or IMPROVES what's already there
+3. Write COMPLETE working code for that feature
+4. Format your response EXACTLY as shown below
 
-SUGGESTED IMPROVEMENTS (choose the most impactful):
-- Implement a NEW FEATURE that extends the project's capabilities
-- Add comprehensive test suite for existing functionality
-- Create API endpoints or CLI commands that users need
-- Build data processing pipelines or automation scripts
-- Add caching, optimization, or performance improvements
-- Implement authentication, validation, or security features
-- Create database models, migrations, or data access layers
-- Add integrations with external services or APIs
-- Build monitoring, logging, or debugging utilities
-- Refactor complex code into maintainable modules
+IMPORTANT: Base your feature on what you see in the code samples. Build upon existing functionality!
 
-DELIVERABLE FORMAT:
-FILE: <path/filename.ext>
+RESPONSE FORMAT (follow exactly):
+FILE: new_feature.py
 CONTENT:
-<Complete, working, production-ready code>
+import existing_modules
 
-Think like a senior engineer: What would make this project significantly better?"""
+def new_feature():
+    '''Complete working code that extends existing functionality'''
+    pass
+
+if __name__ == "__main__":
+    new_feature()
+
+DO NOT:
+- Create tests for files that don't exist
+- Assume what the project does without reading the samples
+- Use placeholder filenames
+- Write documentation instead of code
+- Use placeholders like [...existing code...] or comments like "# add this code here"
+- Give instructions instead of complete code
+
+DO:
+- Read the code samples to understand the project
+- Build features that complement existing code
+- Include imports, error handling, type hints
+- Make it production-ready
+- Write COMPLETE, RUNNABLE code with no placeholders
+- If modifying existing files, include the FULL file content"""
         
         await session.send({"prompt": prompt})
         
@@ -178,6 +206,24 @@ Think like a senior engineer: What would make this project significantly better?
         # Clean up trailing empty lines
         while content_lines and not content_lines[-1].strip():
             content_lines.pop()
+        
+        # Validate filename is not a placeholder
+        if filename and ('<' in filename or '>' in filename or 'path/filename' in filename.lower()):
+            print(f"❌ Invalid placeholder filename detected: {filename}")
+            filename = None
+        
+        # Validate content doesn't have placeholders
+        content_text = '\n'.join(content_lines)
+        if any(placeholder in content_text for placeholder in [
+            '[...existing code...]',
+            '[...rest of the code...]',
+            '# TODO: implement',
+            '# Add code here',
+            '...existing code...'
+        ]):
+            print(f"❌ Code contains placeholders - refusing to commit incomplete code")
+            print(f"Found placeholders in: {content_text[:200]}")
+            return False
         
         if not filename or not content_lines:
             print(f"❌ Failed to parse valid FILE and CONTENT from response")
