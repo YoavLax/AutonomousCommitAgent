@@ -1,7 +1,7 @@
 # Autonomous GitHub Agent - Minimal Dependencies
 
 # GitHub Copilot SDK
-github-copilot-sdk>=0.1.18
+github-copilot-sdk>=0.2.0
 
 # Git operations
 gitpython>=3.1.40

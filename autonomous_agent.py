@@ -17,7 +17,7 @@ AUTONOMOUS_AGENT_ENABLED = os.getenv("AUTONOMOUS_AGENT_ENABLED", "true").lower()
 async def make_autonomous_commit(repo_path: str) -> bool:
     """Make an autonomous commit using simple direct approach."""
     from git import Repo
-    from copilot import CopilotClient
+    from copilot import CopilotClient, PermissionHandler
     
     print("\n" + "=" * 70)
     print("🤖 AUTONOMOUS COMMIT AGENT - EXECUTION STARTED")
@@ -75,14 +75,15 @@ async def make_autonomous_commit(repo_path: str) -> bool:
         
         # Initialize Copilot client
         print("\n🤖 Initializing Copilot...")
-        copilot = CopilotClient(options={"cli_path": "copilot.cmd"})
+        copilot = CopilotClient(options={"cli_path": r"C:\Users\ylax\AppData\Roaming\npm\copilot.cmd"})
         await copilot.start()
         print("✓ Copilot started")
         
         # Create session
         session = await copilot.create_session({
             "model": "gpt-4.1",
-            "streaming": True
+            "streaming": True,
+            "on_permission_request": PermissionHandler.approve_all
         })
         print("✓ Session created")
         
